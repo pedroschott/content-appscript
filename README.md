@@ -46,18 +46,6 @@ Ideal for catalogs, visual dashboards, or any sheet that needs fast, bulk image 
 
 ---
 
-## Example Code
-
-```js
-function insertRandomDriveImages() {
-  // ... code here ...
-}
-
-function deleteAllImages() {
-  // ... code here ...
-}
-```
-
 ## Permissions
 
 The script will ask for Google Drive and Sheets permissions the first time you run it.
