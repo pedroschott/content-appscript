@@ -56,6 +56,7 @@ function insertRandomDriveImages() {
 function deleteAllImages() {
   // ... code here ...
 }
+```
 
 ## Permissions
 
