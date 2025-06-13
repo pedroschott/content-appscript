@@ -1,37 +1,35 @@
-/**
- * Inserts random images from a Google Drive folder into a Google Sheet grid.
- * Configure the folderId, startColumn, imagesPerRow, cellSize, and startRow as needed.
- */
-function insertRandomDriveImages() {
+function insertRandomDriveImagesUnique() {
   const folderId     = 'YOUR GOOGLE DRIVE FOLDER ID';
-  const startColumn  = 12;    // e.g., Column L (A=1, B=2, ...)
+  const startColumn  = 12;    // H
   const imagesPerRow = 8;
   const cellSize     = 100;   // px
-  const startRow     = 2;     // skip header row
+  const startRow     = 2;     // skip header
 
   const sheet   = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   const lastRow = sheet.getLastRow();
   const rowsCnt = lastRow - startRow + 1;
 
-  // 1) Pull all image blobs once
-  const iter = DriveApp.getFolderById(folderId).getFiles();
+  // 1) Pull all image blobs
   const blobs = [];
-  while (iter.hasNext()) {
-    const f = iter.next();
-    if (f.getMimeType().startsWith('image/')) blobs.push(f.getBlob());
+  const files = DriveApp.getFolderById(folderId).getFiles();
+  while (files.hasNext()) {
+    const f = files.next();
+    if (f.getMimeType().startsWith('image/')) {
+      blobs.push(f.getBlob());
+    }
   }
-  if (!blobs.length) {
-    Logger.log('No images in folder!');
+  if (blobs.length === 0) {
+    Logger.log('No images found in folder!');
     return;
   }
 
-  // 2) Shuffle images
+  // 2) Shuffle blobs (Fisher–Yates)
   for (let i = blobs.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [blobs[i], blobs[j]] = [blobs[j], blobs[i]];
   }
 
-  // 3) Find existing image-anchors
+  // 3) Find which cells already have images
   const filled = new Set();
   sheet.getImages().forEach(img => {
     const c = img.getAnchorCell();
@@ -44,12 +42,14 @@ function insertRandomDriveImages() {
     }
   });
 
-  // 4) Build & shuffle empty-cell list
+  // 4) Build & shuffle list of empty cells
   const empty = [];
   for (let r = startRow; r <= lastRow; r++) {
-    for (let o = 0; o < imagesPerRow; o++) {
-      const c = startColumn + o;
-      if (!filled.has(`${r},${c}`)) empty.push({ row: r, col: c });
+    for (let offset = 0; offset < imagesPerRow; offset++) {
+      const c = startColumn + offset;
+      if (!filled.has(`${r},${c}`)) {
+        empty.push({ row: r, col: c });
+      }
     }
   }
   for (let i = empty.length - 1; i > 0; i--) {
@@ -57,32 +57,28 @@ function insertRandomDriveImages() {
     [empty[i], empty[j]] = [empty[j], empty[i]];
   }
 
-  // 5) Batch-resize grid
+  // 5) Resize rows & columns
   sheet.setColumnWidths(startColumn, imagesPerRow, cellSize);
   sheet.setRowHeights(startRow, rowsCnt, cellSize);
 
-  // 6) Insert images into empty cells
-  let idx = 0;
-  empty.forEach(cell => {
-    const img = sheet.insertImage(blobs[idx], cell.col, cell.row);
+  // 6) Insert each blob into one unique empty cell
+  const toInsert = Math.min(blobs.length, empty.length);
+  for (let i = 0; i < toInsert; i++) {
+    const { row, col } = empty[i];
+    const blob = blobs[i];
+    const img  = sheet.insertImage(blob, col, row);
+    // scale to fit
     const scale = Math.min(cellSize / img.getWidth(), cellSize / img.getHeight());
-    img.setWidth(img.getWidth() * scale).setHeight(img.getHeight() * scale);
-    idx = (idx + 1) % blobs.length;
-  });
+    img.setWidth(img.getWidth() * scale)
+       .setHeight(img.getHeight() * scale);
+  }
 
-  Logger.log(`Inserted ${empty.length} images at ${new Date().toLocaleTimeString()}`);
+  Logger.log(`Inserted ${toInsert} unique images at ${new Date().toLocaleTimeString()}`);
 }
 
-/**
- * Deletes all images from the active sheet.
- */
 function deleteAllImages() {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const sheet  = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   const images = sheet.getImages();
-
-  images.forEach(img => {
-    img.remove();
-  });
-
+  images.forEach(img => img.remove());
   Logger.log(`Deleted ${images.length} images at ${new Date().toLocaleTimeString()}`);
 }
